@@ -35,7 +35,10 @@ class UserInfo(BaseModel):
   level    : float
   balance  : float
   reservations : List[CourtReservation]
-  
+
+class court_info (BaseModel) :
+  courts   : List [int]
+
 class Password(BaseModel):
   password : str
   

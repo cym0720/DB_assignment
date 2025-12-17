@@ -47,11 +47,11 @@
       background-color: #66b1ff;
     }
     .register-btn {
-      background-color: #67c23a;
+      background-color: #2bac27;
       color: white;
     }
     .register-btn:hover {
-      background-color: #85ce61;
+      background-color: #5cc65c;
     }
     .error-tip {
       color: #f56c6c;
@@ -95,7 +95,6 @@
 
     // 2. 登录请求核心函数
     async function login() {
-      // 2.1 前端非空校验（兜底，即使有required也做一层）
       const username = usernameInput.value.trim();
       const password = passwordInput.value.trim();
       if (!username) {
@@ -125,6 +124,7 @@
         if (result.message =='登录成功') {
           // 登录成功：提示+跳转到系统主页（比如index.html）
           alert('登录成功！');
+          localStorage.setItem('currentUser', JSON.stringify(result.user)); // 存储登录态
           window.location.href = 'user.html'; // 替换为你的系统主页路径
         } else {
           // 登录失败：显示后端返回的错误信息

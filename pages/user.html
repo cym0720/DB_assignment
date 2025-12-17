@@ -1,11 +1,351 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>羽毛球系统 - 用户中心</title>
+  <style>
+    /* 全局样式重置+基础美化 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    /* 标题样式 */
+    .title {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    /* 用户信息卡片 */
+    .user-info {
+      margin-bottom: 30px;
+    }
+    .user-info h3 {
+      color: #409eff;
+      margin-bottom: 20px;
+    }
+    .info-item {
+      display: flex;
+      margin: 10px 0;
+      font-size: 16px;
+    }
+    .info-label {
+      width: 120px;
+      color: #666;
+      font-weight: bold;
+    }
+    .info-value {
+      color: #333;
+    }
+    /* 按钮样式 */
+    .btn-group {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .btn {
+      padding: 10px 25px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+    .btn-recharge {
+      background-color: #67c23a;
+      color: white;
+    }
+    .btn-recharge:hover {
+      background-color: #52c41a;
+    }
+    .btn-reserve {
+      background-color: #409eff;
+      color: white;
+    }
+    .btn-reserve:hover {
+      background-color: #1890ff;
+    }
+    /* 充值弹窗样式 */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      width: 400px;
+    }
+    .modal-title {
+      font-size: 18px;
+      margin-bottom: 20px;
+      text-align: center;
+      color: #333;
+    }
+    .recharge-form {
+      margin-bottom: 20px;
+    }
+    .form-item {
+      margin: 15px 0;
+    }
+    .form-item label {
+      display: block;
+      margin-bottom: 5px;
+      color: #666;
+    }
+    .form-item input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    .modal-btn-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    .btn-cancel {
+      background-color: #909399;
+      color: white;
+    }
+    .btn-cancel:hover {
+      background-color: #73767a;
+    }
+    /* 错误提示 */
+    .error-tip {
+      color: #f56c6c;
+      font-size: 14px;
+      text-align: center;
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  
+  <div class="container">
+    <h1 class="title">羽毛球系统 - 用户中心</h1>
+
+    <!-- 用户信息展示区域 -->
+    <div class="user-info">
+      <h3>我的信息</h3>
+      <div class="info-item">
+        <span class="info-label">用户ID：</span>
+        <span class="info-value" id="userId">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">用户名：</span>
+        <span class="info-value" id="username">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">邮箱：</span>
+        <span class="info-value" id="email">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">会员等级：</span>
+        <span class="info-value" id="level">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">账户余额：</span>
+        <span class="info-value" id="balance">¥0.00</span>
+      </div>
+    </div>
+
+    <!-- 功能按钮区域 -->
+    <div class="btn-group">
+      <button class="btn btn-recharge" id="rechargeBtn">充值余额</button>
+      <button class="btn btn-reserve" id="reserveBtn">预定场地</button>
+    </div>
+
+    <!-- 错误提示 -->
+    <div class="error-tip" id="errorTip"></div>
+  </div>
+
+  <!-- 充值弹窗 -->
+  <div class="modal" id="rechargeModal">
+    <div class="modal-content">
+      <h3 class="modal-title">充值余额</h3>
+      <form class="recharge-form">
+        <div class="form-item">
+          <label for="rechargeAmount">充值金额（元）：</label>
+          <input type="number" id="rechargeAmount" min="0.01" step="0.01" placeholder="请输入充值金额" required>
+        </div>
+      </form>
+      <div class="modal-btn-group">
+        <button class="btn btn-cancel" id="cancelBtn">取消</button>
+        <button class="btn btn-recharge" id="confirmRechargeBtn">确认充值</button>
+      </div>
+      <div class="error-tip" id="modalErrorTip"></div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 全局变量 & 元素获取 ==========
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    // 用户信息元素
+    const userIdEl = document.getElementById('userId');
+    const usernameEl = document.getElementById('username');
+    const emailEl = document.getElementById('email');
+    const levelEl = document.getElementById('level');
+    const balanceEl = document.getElementById('balance');
+    // 按钮元素
+    const rechargeBtn = document.getElementById('rechargeBtn');
+    const reserveBtn = document.getElementById('reserveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const confirmRechargeBtn = document.getElementById('confirmRechargeBtn');
+    // 弹窗元素
+    const rechargeModal = document.getElementById('rechargeModal');
+    const rechargeAmountEl = document.getElementById('rechargeAmount');
+    // 错误提示元素
+    const errorTip = document.getElementById('errorTip');
+    const modalErrorTip = document.getElementById('modalErrorTip');
+
+    // ========== 工具函数 ==========
+    // 显示错误提示
+    function showError(el, msg) {
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => {
+        el.style.display = 'none';
+      }, 3000);
+    }
+
+    // 关闭充值弹窗
+    function closeModal() {
+      rechargeModal.style.display = 'none';
+      rechargeAmountEl.value = '';
+      modalErrorTip.style.display = 'none';
+    }
+
+    // ========== 核心功能 ==========
+    // 1. 登录态校验（未登录跳登录页）
+    function checkLogin() {
+      if (!currentUser) {
+        alert('请先登录！');
+        window.location.href = 'login.html';
+        return false;
+      }
+      return true;
+    }
+
+    // 2. 获取用户信息（调用/get/users/{username}接口）
+    async function getUserInfo() {
+      if (!checkLogin()) return;
+
+      const username = currentUser.username;
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/users/${username}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          // 渲染用户信息到页面
+          userIdEl.textContent = result.user_id;
+          usernameEl.textContent = result.username;
+          emailEl.textContent = result.email;
+          levelEl.textContent = result.level;
+          balanceEl.textContent = `¥${result.balance.toFixed(2)}`;
+        } else {
+          showError(errorTip, result.detail || '获取用户信息失败！');
+        }
+      } catch (error) {
+        showError(errorTip, '网络异常，无法获取用户信息！');
+        console.error('获取用户信息失败：', error);
+      }
+    }
+
+    // 3. 充值余额逻辑（预留后端接口，先写前端逻辑）
+    async function rechargeBalance() {
+      const amount = parseFloat(rechargeAmountEl.value.trim());
+      // 前端校验金额
+      if (isNaN(amount) || amount <= 0) {
+        showError(modalErrorTip, '请输入有效的充值金额！');
+        return;
+      }
+
+      if (!checkLogin()) return;
+      const username = currentUser.username;
+
+      try {
+        // 注：此处需要后端补充「充值余额接口」，示例请求格式如下
+        const response = await fetch(`http://127.0.0.1:8000/users/${username}/recharge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: amount // 充值金额
+          })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          alert(`充值成功！当前余额：¥${result.new_balance.toFixed(2)}`);
+          closeModal();
+          getUserInfo(); // 重新获取用户信息，刷新余额
+        } else {
+          showError(modalErrorTip, result.detail || '充值失败！');
+        }
+      } catch (error) {
+        showError(modalErrorTip, '网络异常，充值失败！');
+        console.error('充值失败：', error);
+      }
+    }
+
+    // ========== 事件绑定 ==========
+    // 页面加载时获取用户信息
+    window.onload = getUserInfo;
+
+    // 充值按钮 - 打开弹窗
+    rechargeBtn.addEventListener('click', () => {
+      rechargeModal.style.display = 'flex';
+    });
+
+    // 取消按钮 - 关闭弹窗
+    cancelBtn.addEventListener('click', closeModal);
+
+    // 确认充值按钮 - 执行充值
+    confirmRechargeBtn.addEventListener('click', rechargeBalance);
+
+    // 预定场地按钮 - 跳转到预定页面
+    reserveBtn.addEventListener('click', () => {
+      window.location.href = 'reserve.html'; // 跳转到预定场地页面
+    });
+
+    // 点击弹窗外部关闭弹窗（可选）
+    window.addEventListener('click', (e) => {
+      if (e.target === rechargeModal) {
+        closeModal();
+      }
+    });
+  </script>
 </body>
 </html>
