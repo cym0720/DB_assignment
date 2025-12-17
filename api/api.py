@@ -78,6 +78,6 @@ def login_user(user: UserLogin) :
   user_data = system.find_user(username = user.username)
 
   return {
-    "message" : "登陆成功",
+    "message" : "登录成功",
     "user"    : user_data
   }
