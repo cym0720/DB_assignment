@@ -34,10 +34,13 @@ class UserInfo(BaseModel):
   email    : str
   level    : float
   balance  : float
-  reservations : List[CourtReservation]
+  
 
-class court_info (BaseModel) :
+class CourtInfo (BaseModel) :
   courts   : List [int]
+
+class CourtReservations (BaseModel) :
+  reservations : List[CourtReservation]
 
 class Password(BaseModel):
   password : str
@@ -84,3 +87,17 @@ def login_user(user: UserLogin) :
     "message" : "登录成功",
     "user"    : user_data
   }
+
+@app.get("/courts/info", summary="获取场地信息") 
+def get_court_info() :
+  court_data = system.find_court_info()
+  if len(court_data["courts"]) == 0:
+    raise HTTPException(status_code=404, detail="No court data found")
+  return court_data
+
+@app.get("/courts/reservations/info", summary="获取场地预约信息")
+def get_court_reservations_info() :
+  reservations = system.find_reservation_info()
+  if len(reservations) == 0:
+    raise HTTPException(status_code=404, detail="No reservation data found")
+  return reservations

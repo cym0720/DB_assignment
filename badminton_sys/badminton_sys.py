@@ -321,25 +321,6 @@ class BadmintonSystem(Account, Court, CourtReservation) :
 
 # -------------------------------------查找代码--------------------------------------
   def find_user(self, username: str = None, user_id: int = None):
-    """
-    查询用户详情：基本信息 + 账户信息 + 预约列表。
-    至少传 username 或 user_id 之一。
-    返回示例：
-    {
-        "user_id": 1,
-        "username": "tom",
-        "email": "tom@example.com",
-        "balance": 100.0,
-        "level": 1,
-        "reservations": [
-            {
-                "court_id": 3,
-                "reserve_date": date(...),
-                "reserve_time": "18:00:00"
-            }
-        ]
-    }
-    """
     try:
       # 参数校验
       if username is None and user_id is None:
@@ -457,9 +438,53 @@ class BadmintonSystem(Account, Court, CourtReservation) :
     except Exception as e:
       if "Court not exists" in str(e):
         print(e)
-  
+    
+  def find_court_info(self) :
+    try:
+      sql_select_all_courts = "SELECT court_id, level FROM Court"
+      self.cursor.execute(sql_select_all_courts)
+      results = self.cursor.fetchall()
+      court_ids = {
+        "courts" : [{'court_id' :result[0], 'level' : result[1]} for result in results]
+      }
+      return court_ids
+
+    except mysql.connector.Error as err:
+      print(f"mysql went wrong at find_court_info: {format(err)}")
+      return []
+    
+  def find_reservation_info(self) :
+    try :
+      sql_select_all_reservations = "select * From CourtReservation"
+      self.cursor.execute(sql_select_all_reservations)
+      results = self.cursor.fetchall()
+      reserve_time_strs = []
+      for result in results:
+        # 取出秒数（result[3]是reserve_time对应的秒数）
+        reserve_time = result[3]
+        seconds = reserve_time.total_seconds()
+        # 把秒数转成HH:MM:SS格式：
+        # 小时 = 秒数 // 3600
+        # 分钟 = (秒数 % 3600) // 60
+        # 秒 = 秒数 % 60
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        seconds_part = int(seconds % 60)
+        # 格式化成两位数（比如1→01）
+        reserve_time_strs.append(f"{hours:02d}:{minutes:02d}:{seconds_part:02d}")
+      reservations = [{
+        "court_id"      : result[0],
+        "subscriber"    : result[1],
+        "reserve_date"  : result[2],
+        "reserve_time"  : reserve_time_str
+      } for result,reserve_time_str in zip(results, reserve_time_strs)]
+      return reservations
+      
+    except mysql.connector.Error as err :
+      print(f"mysql went wrong at find_court_info: {format(err)}")
+      
   def find_court_reservation(self, court_id, reserve_date, reserve_time) :
-    try: 
+    try:
       if not self.check_court_reservation_exist(court_id, reserve_date, reserve_time):
         raise(Exception(f"Court reservation not exists: {court_id}, {reserve_date}, {reserve_time}"))
       else:
@@ -471,7 +496,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
           return None
         else:
           return CourtReservation(result[0], result[1], result[2], result[3])
-    
+
     except mysql.connector.Error as err:
       print(f"mysql went wrong at find_court_reservation: {format(err)}")
       return None
