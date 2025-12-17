@@ -1,12 +1,19 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from badminton_sys.badminton_sys import BadmintonSystem
 from typing import List
 
 app = FastAPI()
+app.add_middleware(
+  CORSMiddleware,
+  allow_origins=["*"],
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
+)
 
 system = BadmintonSystem()
-
 class CourtReservation(BaseModel):
   court_id : int 
   reserve_time : str
@@ -28,8 +35,15 @@ class UserInfo(BaseModel):
   level    : float
   balance  : float
   reservations : List[CourtReservation]
+  
+class Password(BaseModel):
+  password : str
+  
+class LoginResponse(BaseModel):
+  username : str
+  password : str
 
-@app.post("/users", summary="创建用户")
+@app.post("/users/signup", summary="创建用户")
 def create_user(user: UserCreate):
   success = system.create_user(user.username, user.email, user.password)
   if not success:
@@ -40,25 +54,30 @@ def create_user(user: UserCreate):
 def get_user(username: str):
   user_data = system.find_user(username)
   if user_data is None:
-    raise HTTPException(status_code=404, detail="User not found")
-  
-  reservations = [
-    CourtReservation(
-      court_id     = r["court_id"],
-      reserve_date = r["reserve_date"],
-      reserve_time = r["reserve_time"]
-    )
-    for r in user_data["reservations"]
-  ]
+    raise HTTPException(status_code=404, detail="User data not found")
 
-  user_info = UserInfo(
-    user_id      = user_data["user_id"],
-    username     = user_data["username"],
-    email        = user_data["email"],
-    level        = user_data["level"],
-    balance      = user_data["balance"],
-    reservations = reservations
-  )
-  return user_info
+  return user_data
 
+@app.post("/users/delete/{username}", summary="删除用户")
+def delete_user(username: str, user_password: Password):
+  success = system.delete_user(username, user_password.password)
+  if not success:
+    raise HTTPException(status_code=400, detail="User deletion failed")
+  return {"message": "User deleted successfully"}
+
+@app.post("/users/login", summary = "用户登录")
+def login_user(user: UserLogin) :
+  success = system.check_user_exist(user.username)
+  if not success:
+    raise HTTPException(status_code=400, detail="User not found")
   
+  success = system.check_password(user.username, user.password)
+  if not success:
+    raise HTTPException(status_code=400, detail="Incorrect password")
+
+  user_data = system.find_user(username = user.username)
+
+  return {
+    "message" : "登陆成功",
+    "user"    : user_data
+  }
