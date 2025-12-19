@@ -27,6 +27,16 @@
       text-align: center;
       margin: 20px 0;
     }
+    .user-btn {
+      background-color: #6bc5ef;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 0 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
     .date-btn {
       background-color: #86b2a0;
       color: white;
@@ -107,7 +117,7 @@
 </head>
 <body>
   <h1 class="title">羽毛球系统 - 预约场地界面</h1>
-  
+    
   <!-- 日期按钮容器（修正ID拼写错误） -->
   <div id="date-btns-container">
     <!-- JS动态生成日期按钮 -->
@@ -162,6 +172,13 @@
       const container = document.getElementById("date-btns-container");
       const today = new Date(selectedDate);
 
+      const userBtn = document.createElement("button");
+      userBtn.className = "user-btn";
+      userBtn.addEventListener("click", function() {
+        window.location.href = "user.html";
+      });
+      userBtn.textContent = "回到个人中心";
+      container.appendChild(userBtn);
       // 生成3天的日期按钮（今天/明天/后天）
       for (let i = 0; i < 3; i++) {
         const targetDate = new Date(today);

@@ -114,3 +114,14 @@ def create_court_reservation(reservation: CourtReservation) :
   if not success:
     raise HTTPException(status_code=400, detail="Reservation creation failed")
   return {"message": "Reservation created successfully"}
+
+@app.post("/courts/reservations/delete", summary="删除场地预约")
+def delete_court_reservation(reservation: CourtReservation) :
+  success = system.delete_court_reservation(
+    court_id     = reservation.court_id,
+    reserve_date = reservation.reserve_date,
+    reserve_time = reservation.reserve_time
+  )
+  if not success:
+    raise HTTPException(status_code=400, detail="Reservation deletion failed")
+  return {"message": "Reservation deleted successfully"}

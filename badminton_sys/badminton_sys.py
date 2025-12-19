@@ -279,7 +279,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if not self.check_court_reservation_exist(court_id, reserve_date, reserve_time):
         raise(Exception(f"Court reservation not exists: {court_id}, {reserve_date}, {reserve_time}"))
       #创建事务
-      self.db.start_transaction()
+      # self.db.start_transaction()
       sql_delete_court_reservation = "DELETE FROM CourtReservation WHERE court_id = %s and reserve_date = %s and reserve_time = %s"
       self.cursor.execute(sql_delete_court_reservation, (court_id, reserve_date, reserve_time))
       self.db.commit()
@@ -322,11 +322,10 @@ class BadmintonSystem(Account, Court, CourtReservation) :
 # -------------------------------------查找代码--------------------------------------
   def find_user(self, username: str = None, user_id: int = None):
     try:
-      # 参数校验
       if username is None and user_id is None:
         raise ValueError("find_user 需要至少提供 username 或 user_id 之一")
 
-      # 基础 SQL
+      # 最长SQL
       sql = """
         SELECT 
           u.id AS user_id,
@@ -482,7 +481,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       
     except mysql.connector.Error as err :
       print(f"mysql went wrong at find_court_info: {format(err)}")
-      
+
   def find_court_reservation(self, court_id, reserve_date, reserve_time) :
     try:
       if not self.check_court_reservation_exist(court_id, reserve_date, reserve_time):
@@ -500,7 +499,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
     except mysql.connector.Error as err:
       print(f"mysql went wrong at find_court_reservation: {format(err)}")
       return None
-    
+
     except Exception as e:
       if "Court reservation not exists" in str(e):
         print(e)

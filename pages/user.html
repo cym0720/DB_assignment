@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>羽毛球系统 - 用户中心</title>
   <style>
-    /* 全局样式重置+基础美化 */
     * {
       margin: 0;
       padding: 0;
@@ -53,6 +52,25 @@
     .info-value {
       color: #333;
     }
+    table {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      border-collapse: collapse;
+      background-color: white;
+      box-shadow: 0 0 10px rgba(209, 21, 21, 0.05);
+    }
+    table th,
+    table td {
+      border: 2px solid #eee;
+      padding: 8px;
+      text-align: center;
+    }
+    table th {
+      background-color: #f8f9fa;
+      font-weight: normal;
+    }
+
     /* 按钮样式 */
     .btn-group {
       display: flex;
@@ -80,6 +98,15 @@
     }
     .btn-reserve:hover {
       background-color: #1890ff;
+    }
+    .btn-delete{
+      border: 2px ;
+      border-radius: 5px;
+      background-color: #f56c6c;
+      color: white;
+    }
+    .btn-delete:hover {
+      background-color: #f05a5a;  
     }
     /* 充值弹窗样式 */
     .modal {
@@ -132,6 +159,7 @@
     .btn-cancel {
       background-color: #909399;
       color: white;
+      border-radius: 2px;
     }
     .btn-cancel:hover {
       background-color: #73767a;
@@ -173,6 +201,24 @@
         <span class="info-label">账户余额：</span>
         <span class="info-value" id="balance">¥0.00</span>
       </div>
+      <div class="card" style="margin-top: 16px;">
+        <h3 style="margin-bottom: 12px;">我的已预约场地</h3>
+        <div id="no-reservation" style="display:none; color:#666">
+          暂无预约
+        </div>
+        <table id="reservation-table" style="width: 100%; border-collapse: collapse; margin-top: 5px;display: none;">
+          <thead>
+            <tr>
+              <th>场地ID</th>
+              <th>预约日期</th>
+              <th>预约时间段</th>
+              <th>取消预约</th>
+            </tr>
+          </thead>
+          <tbody id="reservation-body"></tbody>
+        </table>
+      </div>
+
     </div>
 
     <!-- 功能按钮区域 -->
@@ -212,11 +258,16 @@
     const emailEl = document.getElementById('email');
     const levelEl = document.getElementById('level');
     const balanceEl = document.getElementById('balance');
+    const reservation = document.getElementById('reservation');
+    const noTip = document.getElementById("no-reservation");
+    const table = document.getElementById("reservation-table");
+    const tableBody = document.getElementById("reservation-body"); //用来写InterHTML
     // 按钮元素
     const rechargeBtn = document.getElementById('rechargeBtn');
     const reserveBtn = document.getElementById('reserveBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     const confirmRechargeBtn = document.getElementById('confirmRechargeBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
     // 弹窗元素
     const rechargeModal = document.getElementById('rechargeModal');
     const rechargeAmountEl = document.getElementById('rechargeAmount');
@@ -224,7 +275,37 @@
     const errorTip = document.getElementById('errorTip');
     const modalErrorTip = document.getElementById('modalErrorTip');
 
-    // ========== 工具函数 ==========
+    // 给tableBody添加事件监听用于判断是否有取消预约需求
+    tableBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".js-delete");
+      if (!btn) return; // 点的不是删除按钮就忽略
+
+      // 构造
+      const court_id = Number(btn.dataset.courtId);
+      const reserve_date = btn.dataset.reserveDate;
+      const reserve_time_str = btn.dataset.reserveTimeStr;
+      const user_id = Number(userIdEl.textContent);
+
+      // 可选：确认弹窗
+      if (!confirm(`确认取消预约？\n场地：${court_id}\n日期：${reserve_date}\n时间：${reserve_time_str}`)) {
+        return;
+      }
+    
+      try {
+        const response = await deleteReservation(court_id, user_id, reserve_date, reserve_time_str);
+      
+        if (response.ok) {
+          await getUserInfo();
+        } else {
+          showError(errorTip, result.detail || "取消预约失败！");
+        }
+      } catch (err) {
+        showError(errorTip, "网络异常，取消预约失败！");
+        console.error(err);
+      }
+    });
+
+    // ========= 工具函数 ==========  
     // 显示错误提示
     function showError(el, msg) {
       el.textContent = msg;
@@ -273,6 +354,7 @@
           emailEl.textContent = result.email;
           levelEl.textContent = result.level;
           balanceEl.textContent = `¥${result.balance.toFixed(2)}`;
+          renderReservation(result.reservations); //渲染已预约列表
         } else {
           showError(errorTip, result.detail || '获取用户信息失败！');
         }
@@ -320,9 +402,78 @@
       }
     }
 
+    async function deleteReservation(court_id, user_id, reserve_date, reserve_time_str) {
+      const response = await fetch(`http://127.0.0.1:8000/courts/reservations/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type' : 'application/json'
+        },
+        body: JSON.stringify({
+          court_id: court_id,
+          subscriber: user_id,
+          reserve_time: reserve_time_str,
+          reserve_date: reserve_date
+        })
+      });
+      return response;
+    }
+
+    // 渲染已预约列表的函数
+    function renderReservation(reservations) {
+      const list = Array.isArray(reservations) ? reservations : [];
+
+      //清除以前的html内容
+      tableBody.innerHTML = '';
+       if (list.length === 0) {
+        table.style.display = 'none';
+        noTip.style.display = 'block';
+        return;
+      }
+
+      // //按时间排序,但是sql建表的时候已有约束所以去掉了
+      // list.sort((a, b) => {
+      //   const ka = `${a.reserve_date || ''} ${a.reserve_time || ''}`;
+      //   const kb = `${b.reserve_date || ''} ${b.reserve_time || ''}`;
+      //   return ka.localeCompare(kb);
+      // });
+
+      list.forEach(r => {
+        const tr = document.createElement("tr");
+        const reserve_time_str = int2time(r.reserve_time);
+        tr.innerHTML = `
+          <td>${r.court_id}</td>
+          <td>${r.reserve_date}</td>
+          <td>${reserve_time_str}</td>
+          <td>
+            <button class="btn-delete js-delete"
+            data-court-id = "${r.court_id}"
+            data-reserve-date = "${r.reserve_date}"
+            data-reserve-time-str = "${reserve_time_str}">
+            取消预约</button>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      })
+
+      noTip.style.display = 'none';
+      table.style.display = 'block';
+    }
+
+    // ========== 功能函数 ============
+
+    // 时间戳(秒)转时间字符串
+    function int2time(int) {
+      const hour = Math.floor(int / 3600);
+      const minute = Math.floor((int - hour * 3600) / 60);
+      const second = int - hour * 3600 - minute * 60;
+      const timeStr = `${hour < 10 ? '0' + hour : hour}:${minute < 10 ? '0' + minute : minute}:${second < 10 ? '0' + second : second}`;
+      return timeStr;
+    }
+
     // ========== 事件绑定 ==========
     // 页面加载时获取用户信息
     window.onload = getUserInfo;
+
 
     // 充值按钮 - 打开弹窗
     rechargeBtn.addEventListener('click', () => {
