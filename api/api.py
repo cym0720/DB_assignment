@@ -15,7 +15,8 @@ app.add_middleware(
 
 system = BadmintonSystem()
 class CourtReservation(BaseModel):
-  court_id : int 
+  court_id : int
+  subscriber : int
   reserve_time : str
   reserve_date : str
 
@@ -101,3 +102,15 @@ def get_court_reservations_info() :
   if len(reservations) == 0:
     raise HTTPException(status_code=404, detail="No reservation data found")
   return reservations
+
+@app.post("/courts/reservations/create", summary="创建场地预约")
+def create_court_reservation(reservation: CourtReservation) :
+  success = system.create_reservation(
+    court_id     = reservation.court_id,
+    subscriber   = int(reservation.subscriber),
+    reserve_date = reservation.reserve_date,
+    reserve_time = reservation.reserve_time
+  )
+  if not success:
+    raise HTTPException(status_code=400, detail="Reservation creation failed")
+  return {"message": "Reservation created successfully"}

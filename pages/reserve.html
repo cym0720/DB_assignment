@@ -1,61 +1,351 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>场地预约界面</title>
+  <title>羽毛球场地预约界面</title>
   <style>
-    body {
-      font-style: Arial, sans-serif;
-      background-color: white;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    .reservations-container {
-      width: 400px;
-      margin: 100px auto;
-      background: white;
-      padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      padding: 20px;
     }
     .title {
       text-align: center;
       color: #333;
-      margin-bottom: 30px;
+      margin: 20px 0;
       padding-bottom: 10px;
       border-bottom: 1px solid #eee;
     }
-    table {
+    /* 日期按钮容器 */
+    #date-btns-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .date-btn {
+      background-color: #86b2a0;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 0 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .date-btn:hover {
+      background-color: #05414c;
+    }
+    /* 表格样式 */
+    #court-table {
       width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
       border-collapse: collapse;
+      background-color: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
     }
+    #court-table th,
+    #court-table td {
+      border: 1px solid #eee;
+      padding: 8px;
+      text-align: center;
+    }
+    #court-table th {
+      background-color: #f8f9fa;
+      font-weight: normal;
+    }
+    /* 预约状态按钮 */
     .idle-btn {
-      background-color: rgb(240, 245, 244);
-      color: white;
-      border: 2px rgba(81, 213, 174, 0.822);
-
+      width: 100%;
+      padding: 10px 0;
+      background-color: #f0f5f4;
+      color: #666;
+      border: 2px solid rgba(81, 213, 174, 0.822);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
     }
-    .idle-btn:hover{
+    .idle-btn:hover {
       background-color: rgba(5, 65, 76, 0.694);
-    }
-    .preserved-btn{
-      background-color: rgb(81, 213, 174);
       color: white;
-      border: 2px rgba(81, 213, 174, 0.822);
     }
-    .occupied-btn{
-      background-color: rgb(3, 55, 45);
+    .preserved-btn {
+      width: 100%;
+      padding: 10px 0;
+      background-color: #51d5ae;
       color: white;
-      border: 2px rgba(81, 213, 174, 0.822);
+      border: 2px solid rgba(81, 213, 174, 0.822);
+      border-radius: 4px;
+      cursor: not-allowed;
+    }
+    .occupied-btn {
+      width: 100%;
+      padding: 10px 0;
+      background-color: #03372d;
+      color: white;
+      border: 2px solid rgba(81, 213, 174, 0.822);
+      border-radius: 4px;
+      cursor: not-allowed;
+    }
+    /* 加载提示 */
+    .loading {
+      text-align: center;
+      padding: 50px;
+      color: #999;
+    }
+    .error {
+      text-align: center;
+      padding: 50px;
+      color: red;
     }
   </style>
 </head>
 <body>
-  <div class = "login-container">
-    <h1 class = "title">羽毛球系统 - 预约场地界面</h1>
+  <h1 class="title">羽毛球系统 - 预约场地界面</h1>
+  
+  <!-- 日期按钮容器（修正ID拼写错误） -->
+  <div id="date-btns-container">
+    <!-- JS动态生成日期按钮 -->
+  </div>
 
-    <!-- 场地信息展示区域 -->
-    <script>
-      
-    </script>
+  <!-- 预约表格容器 -->
+  <div>
+    <table id="court-table"></table>
+  </div>
+
+  <script>
+    // ===================== 全局配置 =====================
+    // 后端API地址（替换成你的FastAPI实际地址）
+    const API_BASE = "http://127.0.0.1:8000";
+    // 固定时间段（纵轴）
+    const TIME_SLOTS = [
+      "08:00-09:00", "09:00-10:00", "10:00-11:00",
+      "11:00-12:00", "12:00-13:00", "13:00-14:00",
+      "14:00-15:00", "15:00-16:00", "16:00-17:00",
+      "17:00-18:00", "18:00-19:00", "19:00-20:00",
+      "20:00-21:00", "21:00-22:00", "22:00-23:00"
+    ];
+    // 场地列表（从后端动态获取）
+    let COURTS = [];
+    // 当前选中的日期（默认今天）
+    let selectedDate = new Date().toISOString().split('T')[0];
+
+    // ===================== 1. 获取场地列表（对接后端） =====================
+    async function getCourtsFromAPI() {
+      try {
+        const res = await fetch(`${API_BASE}/courts/info`);
+        if (!res.ok) throw new Error("获取场地列表失败");
+        const data = await res.json();
+        COURTS = data.courts.map(court => ({
+          id: court.court_id, 
+          name: `${court.court_id}号场地`
+        }));
+      } catch (error) {
+        alert("获取场地列表失败，使用模拟数据：" + error.message);
+        COURTS = [
+          { id: 1, name: "1号场地" },
+          { id: 2, name: "2号场地" },
+          { id: 3, name: "3号场地" }
+        ];
+      }
+    }
+    // ===================== 2. 初始化日期按钮 =====================
+    async function initButtons() {
+      // 先获取场地列表
+      await getCourtsFromAPI();
+
+      const container = document.getElementById("date-btns-container");
+      const today = new Date(selectedDate);
+
+      // 生成3天的日期按钮（今天/明天/后天）
+      for (let i = 0; i < 3; i++) {
+        const targetDate = new Date(today);
+        targetDate.setDate(targetDate.getDate() + i);
+
+        const dateStr = targetDate.toISOString().split('T')[0];
+        const month = dateStr.split("-")[1];
+        const day = dateStr.split("-")[2];
+        const dayText = i === 0 ? "今天" : (i === 1 ? "明天" : "后天");
+        const showText = `${dayText}（${month}-${day}）`;
+
+        // 创建日期按钮
+        const btn = document.createElement("button");
+        btn.className = "date-btn";
+        btn.dataset.date = dateStr;
+        btn.textContent = showText;
+
+        // 默认选中今天
+        if (i === 0) {
+          btn.style.backgroundColor = "#51d5ae";
+          btn.style.color = "white";
+          selectedDate = dateStr;
+        }
+
+        btn.addEventListener("click", function() {
+          document.querySelectorAll(".date-btn").forEach(btn => {
+            btn.style.backgroundColor = "";
+            btn.style.color = "";
+          });
+          this.style.backgroundColor = "#51d5ae";
+          this.style.color = "white";
+          selectedDate = this.dataset.date;
+          renderCourtTable(selectedDate);
+        });
+
+        container.appendChild(btn);
+      }
+
+      renderCourtTable(selectedDate);
+    }
+
+    // ===================== 3. 转换预约状态格式 =====================
+    function formatReserveStatus(reservationList, selectedDate) {
+      const statusMap = {};
+      // 初始化所有时间段-场地为空闲
+      TIME_SLOTS.forEach(timeSlot => {
+        statusMap[timeSlot] = {};
+        COURTS.forEach(court => {
+          statusMap[timeSlot][court.id] = "idle";
+        });
+      });
+
+      // 标记已预约的场地
+      reservationList.forEach(res => {
+        const hour = res.reserve_time.split(":")[0];
+        const timeSlot = `${hour}:00-${parseInt(hour)+1}:00`;
+        
+        // 只处理选中日期的预约
+        if (res.reserve_date === selectedDate && statusMap[timeSlot]) {
+          statusMap[timeSlot][res.court_id] = "preserved";
+        }
+      });
+
+      return statusMap;
+    }
+
+    // ===================== 4. 渲染预约表格（核心） =====================
+    async function renderCourtTable(selectedDate) {
+      const table = document.getElementById("court-table");
+      // 显示加载提示
+      table.innerHTML = `<tr><td colspan="${COURTS.length + 1}" class="loading">加载中...</td></tr>`;
+
+      try {
+        // 调用后端预约接口
+        const res = await fetch(`${API_BASE}/courts/reservations/info`);
+        if (!res.ok) throw new Error("获取预约信息失败");
+        const reservationData = await res.json();
+
+        const reserveStatus = formatReserveStatus(reservationData, selectedDate);
+
+        let tableHtml = "";
+
+        tableHtml += "<thead><tr>";
+        tableHtml += "<th>时间</th>";
+        COURTS.forEach(court => {
+          tableHtml += `<th>${court.name}</th>`;
+        });
+        tableHtml += "</tr></thead>";
+
+        tableHtml += "<tbody>";
+        TIME_SLOTS.forEach(timeSlot => {
+          tableHtml += "<tr>";
+          // 时间列
+          tableHtml += `<td>${timeSlot}</td>`;
+          // 场地按钮列
+          COURTS.forEach(court => {
+            const status = reserveStatus[timeSlot]?.[court.id] || "idle";
+            // 状态配置
+            const statusConfig = {
+              idle: { text: "空闲（点击预约）", cls: "idle-btn" },
+              preserved: { text: "已预约", cls: "preserved-btn" },
+              occupied: { text: "场地占用", cls: "occupied-btn" }
+            };
+            const config = statusConfig[status];
+
+            // 拼接按钮（用class替代重复id）
+            tableHtml += `<td>
+              <button 
+                class="${config.cls}"
+                ${status !== "idle" ? "disabled" : ""}
+                data-court-id="${court.id}"
+                data-time-slot="${timeSlot}"
+                data-date="${selectedDate}">
+                ${config.text}
+              </button>
+            </td>`;
+          });
+          tableHtml += "</tr>";
+        });
+        tableHtml += "</tbody>";
+
+        table.innerHTML = tableHtml;
+
+        bindReserveButtonEvent();
+
+      } catch (error) {
+        table.innerHTML = `<tr><td colspan="${COURTS.length + 1}" class="error">加载失败：${error.message}</td></tr>`;
+        console.error("渲染表格失败：", error);
+      }
+    }
+
+    // ===================== 绑定预约按钮点击事件 =====================
+    function bindReserveButtonEvent() {
+      const reserveBtns = document.querySelectorAll(".idle-btn");
+      reserveBtns.forEach(btn => {
+        btn.addEventListener("click", async function() {
+          const courtId = this.dataset.courtId;
+          const timeSlot = this.dataset.timeSlot;
+          const date = this.dataset.date;
+          const courtName = `${courtId}号场地`;
+        
+          if (!confirm(`确认预约${date} ${timeSlot}的${courtName}吗？`)) {
+            return;
+          }
+        
+          try {
+            const startTime = timeSlot.split("-")[0];
+            const reserveTime = `${startTime}:00`;
+          
+            // 调用预约接口
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            const res = await fetch(`${API_BASE}/courts/reservations/create`, {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                court_id: parseInt(courtId), 
+                subscriber:  currentUser.user_id,
+                reserve_time: reserveTime, 
+                reserve_date: date 
+              })
+            });
+          
+            const responseData = await res.json();
+            if (res.ok) {
+              alert(`预约成功！\n日期：${date}\n时间段：${timeSlot}\n场地：${courtName}`);
+              // 重新渲染表格，更新预约状态
+              renderCourtTable(date);
+            } else {
+              alert(`预约失败：${responseData.detail || '未知错误'}`);
+            }
+          
+          } catch (error) {
+            console.error("预约接口调用失败：", error);
+            alert(`预约请求异常，请检查网络或联系管理员！\n错误信息：${error.message}`);
+          }
+        });
+      });
+    }
+    // ===================== 页面初始化 =====================
+    window.onload = async () => {
+      await initButtons();
+    };
+  </script>
 </body>
 </html>

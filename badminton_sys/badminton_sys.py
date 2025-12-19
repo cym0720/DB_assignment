@@ -73,7 +73,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
 
   def check_court_reservation_exist(self, court_id, reserve_date, reserve_time):
     try:
-      sql = "select * from CourtReservations where court_id = %s and reserve_date = %s and reserve_time = %s"
+      sql = "select * from CourtReservation where court_id = %s and reserve_date = %s and reserve_time = %s"
       self.cursor.execute(sql, (court_id, reserve_date, reserve_time))
       return self.cursor.fetchone() is not None
     except mysql.connector.Error as err:
@@ -180,15 +180,15 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       return False
 
   #TODO:对于场地预定，需要处理高并发场景，因此需要加锁
-  def create_court_reservation(self, court_id, subscriber, reserve_date, reserve_time) :
+  def create_reservation(self, court_id, subscriber, reserve_date, reserve_time) :
     try:
       if self.check_court_reservation_exist(court_id, reserve_date, reserve_time):
         raise(Exception(f"Court reservation already exists: {court_id}, {reserve_date}, {reserve_time}"))
       #创建事务
       # self.db.start_transaction()
-      sql_insert_court_reservation = "INSERT INTO CourtReservations (court_id, subscriber, reserve_date, reserve_time) \
+      sql_insert_court_reservation = "INSERT INTO CourtReservation (court_id, subscriber, reserve_date, reserve_time) \
                                       VALUES (%s, %s, %s, %s)"
-      self.cursor.execute(sql_insert_court_reservation, (court_id, str(subscriber), reserve_date, reserve_time))
+      self.cursor.execute(sql_insert_court_reservation, (str(court_id), str(subscriber), reserve_date, reserve_time))
       self.db.commit()
       return True
 
@@ -280,7 +280,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
         raise(Exception(f"Court reservation not exists: {court_id}, {reserve_date}, {reserve_time}"))
       #创建事务
       self.db.start_transaction()
-      sql_delete_court_reservation = "DELETE FROM CourtReservations WHERE court_id = %s and reserve_date = %s and reserve_time = %s"
+      sql_delete_court_reservation = "DELETE FROM CourtReservation WHERE court_id = %s and reserve_date = %s and reserve_time = %s"
       self.cursor.execute(sql_delete_court_reservation, (court_id, reserve_date, reserve_time))
       self.db.commit()
       return True
@@ -488,7 +488,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if not self.check_court_reservation_exist(court_id, reserve_date, reserve_time):
         raise(Exception(f"Court reservation not exists: {court_id}, {reserve_date}, {reserve_time}"))
       else:
-        sql_select_court_reservation = "SELECT * FROM CourtReservations \
+        sql_select_court_reservation = "SELECT * FROM CourtReservation \
                                         WHERE court_id = %s and reserve_date = %s and reserve_time = %s"
         self.cursor.execute(sql_select_court_reservation, (court_id, reserve_date, reserve_time))
         result = self.cursor.fetchone()

@@ -86,14 +86,12 @@
   </div>
 
   <script>
-    // 1. 获取页面元素
     const loginForm = document.getElementById('loginForm');
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     const submitBtn = document.getElementById('submit');
     const errorTip = document.getElementById('errorTip');
 
-    // 2. 登录请求核心函数
     async function login() {
       const username = usernameInput.value.trim();
       const password = passwordInput.value.trim();
@@ -122,12 +120,10 @@
         const result = await response.json();
         
         if (result.message =='登录成功') {
-          // 登录成功：提示+跳转到系统主页（比如index.html）
           alert('登录成功！');
-          localStorage.setItem('currentUser', JSON.stringify(result.user)); // 存储登录态
-          window.location.href = 'user.html'; // 替换为你的系统主页路径
+          localStorage.setItem('currentUser', JSON.stringify(result.user));
+          window.location.href = 'user.html';
         } else {
-          // 登录失败：显示后端返回的错误信息
           showError(result.msg || '登录失败，请检查用户名或密码！');
         }
       } catch (error) {
@@ -136,7 +132,6 @@
       }
     }
 
-    // 3. 错误提示函数
     function showError(msg) {
       errorTip.textContent = msg;
       errorTip.style.display = 'block';
@@ -146,10 +141,8 @@
       }, 3000);
     }
 
-    // 4. 绑定登录按钮点击事件
     submitBtn.addEventListener('click', login);
 
-    // 可选：绑定回车键提交
     loginForm.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         login();
