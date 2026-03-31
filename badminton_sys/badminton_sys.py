@@ -50,6 +50,11 @@ class BadmintonSystem(Account, Court, CourtReservation) :
   def close_db(self):
     self.cursor.close()
     self.db.close()
+
+  def _get_user_id(self, username):
+    self.cursor.execute("SELECT id FROM User WHERE name = %s", (username,))
+    row = self.cursor.fetchone()
+    return row[0] if row else None
   
   #------------------------检查对象是否存在的函数------------------------------
   #TODO: 处理重名情况
@@ -64,7 +69,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
 
   def check_court_exist(self, court_id):
     try:
-      sql = "select * from Courts where court_id = %s"
+      sql = "select * from Court where court_id = %s"
       self.cursor.execute(sql, court_id)
       return self.cursor.fetchone() is not None
     except mysql.connector.Error as err:
@@ -159,11 +164,11 @@ class BadmintonSystem(Account, Court, CourtReservation) :
     try:
       #创建事务
       # self.db.start_transaction()
-      sql_select_court_id = "SELECT MAX(court_id) FROM Courts"
+      sql_select_court_id = "SELECT MAX(court_id) FROM Court"
       self.cursor.execute(sql_select_court_id)
       result = self.cursor.fetchone()
       court_id = 1 if result[0] is None else result[0] + 1
-      sql_insert_court = "INSERT INTO Courts (court_id, level, is_free) \
+      sql_insert_court = "INSERT INTO Court (court_id, level, is_free) \
                           VALUES (%s, %s, %s)"
       self.cursor.execute(sql_insert_court, (court_id, level, is_free))
       self.db.commit()
@@ -209,7 +214,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if not self.check_user_exist(username):
         raise(Exception(f"User not exists: {username}"))
       #创建事务
-      self.db.start_transaction()
+      # self.db.start_transaction()
       sql_select_account_id = "SELECT id FROM Account WHERE name = %s"
       self.cursor.execute(sql_select_account_id, username)
       result = self.cursor.fetchone()
@@ -257,8 +262,8 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if not self.check_court_exist(court_id):
         raise(Exception(f"Court not exists: {court_id}"))
       #创建事务
-      self.db.start_transaction()
-      sql_delete_court = "DELETE FROM Courts WHERE court_id = %s"
+      # self.db.start_transaction()
+      sql_delete_court = "DELETE FROM Court WHERE court_id = %s"
       self.cursor.execute(sql_delete_court, court_id)
       self.db.commit()
       return True
@@ -302,7 +307,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if not self.check_user_exist(username):
         raise(Exception(f"User not exists: {username}"))
       #创建事务
-      self.db.start_transaction()
+      # self.db.start_transaction()
       sql_update_account = "UPDATE Account SET balance = %s, hobby_project = %s, level = %s WHERE name = %s"
       self.cursor.execute(sql_update_account, (balance, hobby_project, level, username))
       self.db.commit()
@@ -312,6 +317,63 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       print(f"mysql went wrong at update_account: {format(err)}")
       self.db.rollback()
       return False
+
+  def update_user_email(self, username, email):
+    try:
+      if not self.check_user_exist(username):
+        raise(Exception(f"User not exists: {username}"))
+      sql = "UPDATE User SET email = %s WHERE name = %s"
+      self.cursor.execute(sql, (email, username))
+      self.db.commit()
+      return True
+    except mysql.connector.Error as err:
+      print(f"mysql went wrong at update_user_email: {format(err)}")
+      self.db.rollback()
+      return False
+    except Exception as e:
+      print("更新用户邮箱失败：{}", e)
+      return False
+
+  def update_user_password(self, username, old_password, new_password):
+    try:
+      if not self.check_user_exist(username):
+        raise(Exception(f"User not exists: {username}"))
+      if not self.check_password(username, old_password):
+        return False
+      sql = "UPDATE User SET password = %s WHERE name = %s"
+      self.cursor.execute(sql, (self._encrypt_password(new_password), username))
+      self.db.commit()
+      return True
+    except mysql.connector.Error as err:
+      print(f"mysql went wrong at update_user_password: {format(err)}")
+      self.db.rollback()
+      return False
+    except Exception as e:
+      print("修改密码失败：{}", e)
+      return False
+
+  def recharge_balance(self, username, amount):
+    try:
+      if amount <= 0:
+        return None
+      user_id = self._get_user_id(username)
+      if user_id is None:
+        return None
+      self.cursor.execute("SELECT balance FROM Account WHERE id = %s", (user_id,))
+      row = self.cursor.fetchone()
+      if not row:
+        return None
+      new_balance = float(row[0]) + float(amount)
+      self.cursor.execute("UPDATE Account SET balance = %s WHERE id = %s", (new_balance, user_id))
+      self.db.commit()
+      return float(new_balance)
+    except mysql.connector.Error as err:
+      print(f"mysql went wrong at recharge_balance: {format(err)}")
+      self.db.rollback()
+      return None
+    except Exception as e:
+      print("充值失败：{}", e)
+      return None
     
     except Exception as e:
       if "User not exists" in str(e):
@@ -422,7 +484,7 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if not self.check_court_exist(court_id):
         raise(Exception(f"Court not exists: {court_id}"))
       else:
-        sql_select_court = "SELECT * FROM Courts WHERE court_id = %s"
+        sql_select_court = "SELECT * FROM Court WHERE court_id = %s"
         self.cursor.execute(sql_select_court, (court_id,))
         result = self.cursor.fetchone()
         if result is None:
@@ -438,10 +500,14 @@ class BadmintonSystem(Account, Court, CourtReservation) :
       if "Court not exists" in str(e):
         print(e)
     
-  def find_court_info(self) :
+  def find_court_info(self, level: int = None) :
     try:
-      sql_select_all_courts = "SELECT court_id, level FROM Court"
-      self.cursor.execute(sql_select_all_courts)
+      if level is None:
+        sql_select_all_courts = "SELECT court_id, level FROM Court"
+        self.cursor.execute(sql_select_all_courts)
+      else:
+        sql_select_all_courts = "SELECT court_id, level FROM Court WHERE level = %s"
+        self.cursor.execute(sql_select_all_courts, (level,))
       results = self.cursor.fetchall()
       court_ids = {
         "courts" : [{'court_id' :result[0], 'level' : result[1]} for result in results]
@@ -503,6 +569,151 @@ class BadmintonSystem(Account, Court, CourtReservation) :
     except Exception as e:
       if "Court reservation not exists" in str(e):
         print(e)
+
+# ----------------------管理员功能--------------------------
+  #统计
+  def admin_count_users(self):
+    self.cursor.execute("SELECT COUNT(*) FROM User")
+    (cnt,) = self.cursor.fetchone()
+    return int(cnt)
+
+  def admin_count_courts(self):
+    self.cursor.execute("SELECT COUNT(*) FROM Court")
+    (cnt,) = self.cursor.fetchone()
+    return int(cnt)
+
+  def admin_count_reservations(self):
+    self.cursor.execute("SELECT COUNT(*) FROM CourtReservation")
+    (cnt,) = self.cursor.fetchone()
+    return int(cnt)
+
+  # 用户管理 
+  def admin_list_users(self):
+    sql = """
+      SELECT u.id, u.name, u.email, a.balance, a.level
+      FROM User u
+      JOIN Account a ON u.id = a.id
+      ORDER BY u.id
+    """
+    self.cursor.execute(sql)
+    rows = self.cursor.fetchall()
+    return [
+      {"id": r[0], "username": r[1], "email": r[2], "balance": float(r[3]), "level": r[4]}
+      for r in rows
+    ]
+
+  def admin_delete_user_by_name(self, username: str):
+    """
+    删除用户（按用户名），同时删除其预约、账户，避免外键/脏数据。
+    """
+    # 先查 user_id
+    self.cursor.execute("SELECT id FROM User WHERE name=%s", (username,))
+    row = self.cursor.fetchone()
+    if not row:
+      return False
+    user_id = row[0]
+
+    try:
+      # 事务
+      # self.db.start_transaction()
+      # 先删预约
+      self.cursor.execute("DELETE FROM CourtReservation WHERE subscriber=%s", (user_id,))
+      # 再删账户
+      self.cursor.execute("DELETE FROM Account WHERE id=%s", (user_id,))
+      # 最后删用户
+      self.cursor.execute("DELETE FROM User WHERE id=%s", (user_id,))
+
+      self.db.commit()
+      return True
+    except Exception as e:
+      print("admin_delete_user_by_name failed:", e)
+      self.db.rollback()
+      return False
+
+  # ======================= 管理员后台：场地管理 =======================
+  def admin_list_courts(self):
+    self.cursor.execute("SELECT court_id, level, is_free FROM Court ORDER BY court_id")
+    rows = self.cursor.fetchall()
+    return [{"court_id": r[0], "level": r[1], "is_free": r[2]} for r in rows]
+
+  def admin_create_court(self, court_id: int, level: int, is_free: int = 1):
+    try:
+      self.cursor.execute(
+        "INSERT INTO Court (court_id, level, is_free) VALUES (%s, %s, %s)",
+        (court_id, level, is_free)
+      )
+      self.db.commit()
+      return True
+    except Exception as e:
+      print("admin_create_court failed:", e)
+      self.db.rollback()
+      return False
+
+  def admin_delete_court(self, court_id: int):
+    try:
+      # self.db.start_transaction()
+      self.cursor.execute("DELETE FROM CourtReservation WHERE court_id=%s", (court_id,))
+      self.cursor.execute("DELETE FROM Court WHERE court_id=%s", (court_id,))
+      self.db.commit()
+      return True
+    except Exception as e:
+      print("admin_delete_court failed:", e)
+      self.db.rollback()
+      return False
+
+  # ======================= 管理员后台：预约管理 =======================
+  def admin_list_reservations(self):
+    self.cursor.execute("""
+      SELECT court_id, subscriber, reserve_date, reserve_time
+      FROM CourtReservation
+      ORDER BY reserve_date DESC, reserve_time DESC
+    """)
+    rows = self.cursor.fetchall()
+
+    out = []
+    for r in rows:
+      reserve_time = r[3]  # MySQL TIME -> python datetime.timedelta
+      # 统一转为 HH:MM:SS 字符串（你前面 find_reservation_info 也是这么做的）:contentReference[oaicite:2]{index=2}
+      seconds = int(reserve_time.total_seconds())
+      hh = seconds // 3600
+      mm = (seconds % 3600) // 60
+      ss = seconds % 60
+      time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
+
+      out.append({
+        "court_id": r[0],
+        "subscriber": r[1],
+        "reserve_date": str(r[2]),
+        "reserve_time": time_str
+      })
+    return out
+
+  def admin_delete_reservation(self, court_id: int, subscriber: int, reserve_date: str, reserve_time: str):
+    try:
+      self.cursor.execute("""
+        DELETE FROM CourtReservation
+        WHERE court_id=%s AND subscriber=%s AND reserve_date=%s AND reserve_time=%s
+      """, (court_id, subscriber, reserve_date, reserve_time))
+      self.db.commit()
+      return True
+    except Exception as e:
+      print("admin_delete_reservation failed:", e)
+      self.db.rollback()
+      return False
+
+  def admin_update_court_level(self, court_id: int, level: int):
+    try:
+      self.cursor.execute(
+        "UPDATE Court SET level = %s WHERE court_id = %s",
+        (level, court_id)
+      )
+      self.db.commit()
+      return True
+    except Exception as e:
+      print("admin_update_court_level failed:", e)
+      self.db.rollback()
+      return False
+
   
 if __name__ == "__main__" :
   system = BadmintonSystem()

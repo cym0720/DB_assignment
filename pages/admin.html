@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>羽毛球系统 - 管理后台</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f8f9fa; padding:20px; }
+    .box { max-width: 1000px; margin: 0 auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.1);}
+    h1 { margin-bottom: 16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 16px; }
+    .card { flex:1; min-width:220px; background:#f2f6fc; padding:14px; border-radius:10px; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td { border:1px solid #eee; padding:8px; text-align:center; }
+    th { background:#fafafa;}
+    .btn { padding:8px 12px; border:none; border-radius:6px; cursor:pointer; }
+    .btn-red { background:#f56c6c; color:#fff; }
+    .btn-blue { background:#409eff; color:#fff; }
+    .btn-gray { background:#909399; color:#fff; }
+    .btn-green { background:#67c23a; color:#fff; }
+    .section { margin-top: 22px; }
+    .form { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;}
+    input { padding:8px; border:1px solid #ddd; border-radius:6px;}
+    .level-input { width: 80px; }
+    .search-input { width: 220px; }
+    .muted { color:#666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h1>羽毛球系统 - 管理后台</h1>
+      <button class="btn btn-gray" id="logoutBtn">退出</button>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <div>用户总数</div>
+        <h2 id="userCount">-</h2>
+      </div>
+      <div class="card">
+        <div>场地总数</div>
+        <h2 id="courtCount">-</h2>
+      </div>
+      <div class="card">
+        <div>预约总数</div>
+        <h2 id="resCount">-</h2>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>用户管理</h3>
+      <div class="form">
+        <input id="userSearch" class="search-input" placeholder="按用户名或邮箱查询"/>
+        <button class="btn btn-blue" id="userSearchBtn">查询</button>
+        <button class="btn btn-gray" id="userResetBtn">重置</button>
+        <span class="muted" id="userSearchTip"></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>用户名</th><th>邮箱</th><th>操作</th></tr>
+        </thead>
+        <tbody id="userBody"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h3>场地管理</h3>
+      <div class="form">
+        <input id="newCourtId" type="number" placeholder="场地ID"/>
+        <input id="newCourtLevel" type="number" placeholder="等级(默认1)" />
+        <button class="btn btn-blue" id="addCourtBtn">新增场地</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>场地ID</th><th>等级</th><th>修改等级</th><th>操作</th></tr>
+        </thead>
+        <tbody id="courtBody"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h3>预约管理</h3>
+      <div class="form">
+        <input id="resSearchCourt" class="search-input" placeholder="场地ID"/>
+        <input id="resSearchUser" class="search-input" placeholder="用户ID"/>
+        <input id="resSearchDate" class="search-input" placeholder="日期 2025-01-01"/>
+        <button class="btn btn-blue" id="resSearchBtn">查询</button>
+        <button class="btn btn-gray" id="resResetBtn">重置</button>
+        <span class="muted" id="resSearchTip"></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>场地</th><th>用户ID</th><th>日期</th><th>时间</th><th>操作</th></tr>
+        </thead>
+        <tbody id="resBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:8001";
+
+    function checkAdmin() {
+      if (localStorage.getItem("role") !== "admin") {
+        alert("无权限访问后台");
+        location.href = "login.html";
+        return false;
+      }
+      return true;
+    }
+    function adminHeaders() {
+      return {
+        "Content-Type": "application/json",
+        "X-Admin-Token": localStorage.getItem("adminToken") || ""
+      };
+    }
+
+    async function loadOverview() {
+      const res = await fetch(`${API}/admin/stats/overview`, { headers: adminHeaders() });
+      const data = await res.json();
+      document.getElementById("userCount").textContent = data.user_count;
+      document.getElementById("courtCount").textContent = data.court_count;
+      document.getElementById("resCount").textContent = data.reservation_count;
+    }
+
+    let allUsersCache = [];
+    let allResCache = [];
+
+    async function loadUsers() {
+      const res = await fetch(`${API}/admin/users`, { headers: adminHeaders() });
+      const list = await res.json();
+      allUsersCache = Array.isArray(list) ? list : [];
+      const tbody = document.getElementById("userBody");
+      tbody.innerHTML = "";
+      list.forEach(u => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.email}</td>
+          <td><button class="btn btn-red js-del-user" data-username="${u.username}">删除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadCourts() {
+      const res = await fetch(`${API}/admin/courts`, { headers: adminHeaders() });
+      const list = await res.json();
+      const tbody = document.getElementById("courtBody");
+      tbody.innerHTML = "";
+      list.forEach(c => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${c.court_id}</td>
+          <td>${c.level}</td>
+          <td>
+            <input class="level-input js-level-input" type="number" min="1" value="${c.level}" />
+            <button class="btn btn-green js-update-court" data-court-id="${c.court_id}">更新</button>
+          </td>
+          <td><button class="btn btn-red js-del-court" data-court-id="${c.court_id}">删除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadReservations() {
+      const res = await fetch(`${API}/admin/reservations`, { headers: adminHeaders() });
+      const list = await res.json();
+      allResCache = Array.isArray(list) ? list : [];
+      const tbody = document.getElementById("resBody");
+      tbody.innerHTML = "";
+      list.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.court_id}</td>
+          <td>${r.subscriber}</td>
+          <td>${r.reserve_date}</td>
+          <td>${r.reserve_time}</td>
+          <td>
+            <button class="btn btn-red js-del-res"
+              data-court-id="${r.court_id}"
+              data-subscriber="${r.subscriber}"
+              data-date="${r.reserve_date}"
+              data-time="${r.reserve_time}"
+            >删除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function refreshAll() {
+      await loadOverview();
+      await loadUsers();
+      await loadCourts();
+      await loadReservations();
+    }
+
+    function renderUsers(list) {
+      const tbody = document.getElementById("userBody");
+      tbody.innerHTML = "";
+      list.forEach(u => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.email}</td>
+          <td><button class="btn btn-red js-del-user" data-username="${u.username}">删除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderReservations(list) {
+      const tbody = document.getElementById("resBody");
+      tbody.innerHTML = "";
+      list.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.court_id}</td>
+          <td>${r.subscriber}</td>
+          <td>${r.reserve_date}</td>
+          <td>${r.reserve_time}</td>
+          <td>
+            <button class="btn btn-red js-del-res"
+              data-court-id="${r.court_id}"
+              data-subscriber="${r.subscriber}"
+              data-date="${r.reserve_date}"
+              data-time="${r.reserve_time}"
+            >删除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.addEventListener("click", async (e) => {
+      // 删除用户
+      const uBtn = e.target.closest(".js-del-user");
+      if (uBtn) {
+        const username = uBtn.dataset.username;
+        if (!confirm(`确认删除用户 ${username}？`)) return;
+        const res = await fetch(`${API}/admin/users/${encodeURIComponent(username)}`, {
+          method: "DELETE",
+          headers: adminHeaders()
+        });
+        if (!res.ok) alert("删除失败");
+        await refreshAll();
+        return;
+      }
+
+      // 删除场地
+      const cBtn = e.target.closest(".js-del-court");
+      if (cBtn) {
+        const courtId = cBtn.dataset.courtId;
+        if (!confirm(`确认删除场地 ${courtId}？`)) return;
+        const res = await fetch(`${API}/admin/courts/${courtId}`, {
+          method: "DELETE",
+          headers: adminHeaders()
+        });
+        if (!res.ok) alert("删除失败");
+        await refreshAll();
+        return;
+      }
+
+      // 删除预约
+      const rBtn = e.target.closest(".js-del-res");
+      if (rBtn) {
+        const payload = {
+          court_id: Number(rBtn.dataset.courtId),
+          subscriber: Number(rBtn.dataset.subscriber),
+          reserve_date: rBtn.dataset.date,
+          reserve_time: rBtn.dataset.time
+        };
+        if (!confirm(`确认删除预约？\n场地:${payload.court_id}\n用户:${payload.subscriber}\n${payload.reserve_date} ${payload.reserve_time}`)) return;
+
+        const res = await fetch(`${API}/admin/reservations/delete`, {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) alert("删除失败");
+        await refreshAll();
+        return;
+      }
+
+      // 更新场地等级
+      const upBtn = e.target.closest(".js-update-court");
+      if (upBtn) {
+        const courtId = Number(upBtn.dataset.courtId);
+        const levelInput = upBtn.closest("tr").querySelector(".js-level-input");
+        const level = Number(levelInput.value || 1);
+        const res = await fetch(`${API}/admin/courts/${courtId}`, {
+          method: "PUT",
+          headers: adminHeaders(),
+          body: JSON.stringify({ level })
+        });
+        if (!res.ok) {
+          alert("更新失败");
+        }
+        await refreshAll();
+        return;
+      }
+    });
+
+    // 新增场地
+    document.getElementById("addCourtBtn").addEventListener("click", async () => {
+      const court_id = Number(document.getElementById("newCourtId").value);
+      const level = Number(document.getElementById("newCourtLevel").value || 1);
+      if (!court_id) { alert("请输入场地ID"); return; }
+
+      const res = await fetch(`${API}/admin/courts`, {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ court_id, level })
+      });
+      if (!res.ok) alert("新增失败");
+      document.getElementById("newCourtId").value = "";
+      document.getElementById("newCourtLevel").value = "";
+      await refreshAll();
+    });
+
+    // 用户查询
+    document.getElementById("userSearchBtn").addEventListener("click", () => {
+      const key = document.getElementById("userSearch").value.trim().toLowerCase();
+      const tip = document.getElementById("userSearchTip");
+      if (!key) {
+        renderUsers(allUsersCache);
+        tip.textContent = "";
+        return;
+      }
+      const filtered = allUsersCache.filter(u =>
+        String(u.username || "").toLowerCase().includes(key) ||
+        String(u.email || "").toLowerCase().includes(key)
+      );
+      renderUsers(filtered);
+      tip.textContent = `共 ${filtered.length} 条结果`;
+    });
+
+    document.getElementById("userResetBtn").addEventListener("click", () => {
+      document.getElementById("userSearch").value = "";
+      document.getElementById("userSearchTip").textContent = "";
+      renderUsers(allUsersCache);
+    });
+
+    // 预约查询
+    document.getElementById("resSearchBtn").addEventListener("click", () => {
+      const courtId = document.getElementById("resSearchCourt").value.trim();
+      const userId = document.getElementById("resSearchUser").value.trim();
+      const date = document.getElementById("resSearchDate").value.trim();
+      const tip = document.getElementById("resSearchTip");
+
+      const filtered = allResCache.filter(r => {
+        if (courtId && String(r.court_id) !== courtId) return false;
+        if (userId && String(r.subscriber) !== userId) return false;
+        if (date && String(r.reserve_date) !== date) return false;
+        return true;
+      });
+      renderReservations(filtered);
+      tip.textContent = `共 ${filtered.length} 条结果`;
+    });
+
+    document.getElementById("resResetBtn").addEventListener("click", () => {
+      document.getElementById("resSearchCourt").value = "";
+      document.getElementById("resSearchUser").value = "";
+      document.getElementById("resSearchDate").value = "";
+      document.getElementById("resSearchTip").textContent = "";
+      renderReservations(allResCache);
+    });
+
+    // 退出
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("role");
+      localStorage.removeItem("adminToken");
+      location.href = "login.html";
+    });
+
+    window.onload = async () => {
+      if (!checkAdmin()) return;
+      await refreshAll();
+    };
+  </script>
+</body>
+</html>

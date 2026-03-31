@@ -172,6 +172,48 @@
       margin-top: 10px;
       display: none;
     }
+    .card {
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+    .form-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .form-row input, .form-row textarea {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      width: 260px;
+    }
+    .form-row textarea {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+    }
+    .btn-small {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      background: #409eff;
+      color: #fff;
+      cursor: pointer;
+    }
+    .ai-response {
+      margin-top: 10px;
+      background: #f8f9fa;
+      border: 1px dashed #ddd;
+      border-radius: 6px;
+      padding: 10px;
+      min-height: 60px;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -219,6 +261,28 @@
         </table>
       </div>
 
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom: 10px;">账号设置</h3>
+      <div class="form-row">
+        <input type="email" id="newEmail" placeholder="新邮箱" />
+        <button class="btn-small" id="updateEmailBtn">更新邮箱</button>
+      </div>
+      <div class="form-row">
+        <input type="password" id="oldPassword" placeholder="旧密码" />
+        <input type="password" id="newPassword" placeholder="新密码(至少6位)" />
+        <button class="btn-small" id="updatePasswordBtn">修改密码</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom: 10px;">AI 训练建议</h3>
+      <div class="form-row">
+        <textarea id="aiPrompt" placeholder="例如：给我3条提升羽毛球反手的训练建议"></textarea>
+        <button class="btn-small" id="aiAskBtn">获取建议</button>
+      </div>
+      <div class="ai-response" id="aiResponse">等待输入问题...</div>
     </div>
 
     <!-- 功能按钮区域 -->
@@ -274,6 +338,14 @@
     // 错误提示元素
     const errorTip = document.getElementById('errorTip');
     const modalErrorTip = document.getElementById('modalErrorTip');
+    const newEmailEl = document.getElementById('newEmail');
+    const updateEmailBtn = document.getElementById('updateEmailBtn');
+    const oldPasswordEl = document.getElementById('oldPassword');
+    const newPasswordEl = document.getElementById('newPassword');
+    const updatePasswordBtn = document.getElementById('updatePasswordBtn');
+    const aiPromptEl = document.getElementById('aiPrompt');
+    const aiAskBtn = document.getElementById('aiAskBtn');
+    const aiResponseEl = document.getElementById('aiResponse');
 
     // 给tableBody添加事件监听用于判断是否有取消预约需求
     tableBody.addEventListener("click", async (e) => {
@@ -339,7 +411,7 @@
 
       const username = currentUser.username;
       try {
-        const response = await fetch(`http://127.0.0.1:8000/users/${username}`, {
+        const response = await fetch(`http://127.0.0.1:8001/users/${username}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -378,7 +450,7 @@
 
       try {
         // 注：此处需要后端补充「充值余额接口」，示例请求格式如下
-        const response = await fetch(`http://127.0.0.1:8000/users/${username}/recharge`, {
+        const response = await fetch(`http://127.0.0.1:8001/users/${username}/recharge`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -403,7 +475,7 @@
     }
 
     async function deleteReservation(court_id, user_id, reserve_date, reserve_time_str) {
-      const response = await fetch(`http://127.0.0.1:8000/courts/reservations/delete`, {
+      const response = await fetch(`http://127.0.0.1:8001/courts/reservations/delete`, {
         method: 'POST',
         headers: {
           'Content-Type' : 'application/json'
@@ -485,6 +557,81 @@
 
     // 确认充值按钮 - 执行充值
     confirmRechargeBtn.addEventListener('click', rechargeBalance);
+
+    updateEmailBtn.addEventListener('click', async () => {
+      const email = newEmailEl.value.trim();
+      if (!email) {
+        showError(errorTip, "请输入邮箱");
+        return;
+      }
+      try {
+        const res = await fetch(`http://127.0.0.1:8001/users/${currentUser.username}/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          alert("邮箱更新成功");
+          newEmailEl.value = '';
+          getUserInfo();
+        } else {
+          showError(errorTip, result.detail || "更新失败");
+        }
+      } catch (err) {
+        showError(errorTip, "网络异常，更新失败");
+      }
+    });
+
+    updatePasswordBtn.addEventListener('click', async () => {
+      const old_password = oldPasswordEl.value.trim();
+      const new_password = newPasswordEl.value.trim();
+      if (!old_password || !new_password) {
+        showError(errorTip, "请填写旧密码和新密码");
+        return;
+      }
+      try {
+        const res = await fetch(`http://127.0.0.1:8001/users/${currentUser.username}/password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password, new_password })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          alert("密码修改成功");
+          oldPasswordEl.value = '';
+          newPasswordEl.value = '';
+        } else {
+          showError(errorTip, result.detail || "修改失败");
+        }
+      } catch (err) {
+        showError(errorTip, "网络异常，修改失败");
+      }
+    });
+
+    aiAskBtn.addEventListener('click', async () => {
+      const prompt = aiPromptEl.value.trim();
+      if (!prompt) {
+        showError(errorTip, "请输入问题");
+        return;
+      }
+      aiResponseEl.textContent = "生成中...";
+      try {
+        const res = await fetch(`http://127.0.0.1:8001/ai/suggest`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          aiResponseEl.textContent = result.answer || "未生成有效内容";
+        } else {
+          aiResponseEl.textContent = result.detail || "生成失败";
+        }
+      } catch (err) {
+        aiResponseEl.textContent = "网络异常，调用失败";
+      }
+    });
 
     // 预定场地按钮 - 跳转到预定页面
     reserveBtn.addEventListener('click', () => {

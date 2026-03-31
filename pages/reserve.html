@@ -131,7 +131,7 @@
   <script>
     // ===================== 全局配置 =====================
     // 后端API地址（替换成你的FastAPI实际地址）
-    const API_BASE = "http://127.0.0.1:8000";
+    const API_BASE = "http://127.0.0.1:8001";
     // 固定时间段（纵轴）
     const TIME_SLOTS = [
       "08:00-09:00", "09:00-10:00", "10:00-11:00",
@@ -165,12 +165,24 @@
       }
     }
     // ===================== 2. 初始化日期按钮 =====================
+    async function getServerDate() {
+      try {
+        const res = await fetch(`${API_BASE}/server/time`);
+        if (!res.ok) throw new Error("获取服务器时间失败");
+        const data = await res.json();
+        return data.date;
+      } catch (err) {
+        return new Date().toISOString().split('T')[0];
+      }
+    }
+
     async function initButtons() {
       // 先获取场地列表
       await getCourtsFromAPI();
+      const baseDateStr = await getServerDate();
 
       const container = document.getElementById("date-btns-container");
-      const today = new Date(selectedDate);
+      const today = new Date(baseDateStr);
 
       const userBtn = document.createElement("button");
       userBtn.className = "user-btn";
